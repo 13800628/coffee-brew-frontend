@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import "./BeanPage.css"; // スタイルは別ファイルに記述（下記に追加します）
+import "./BeanPage.css";
 
 function BeanPage() {
   const [beans, setBeans] = useState([]);
+  const [error, setError] = useState(null);
   const [search, setSearch] = useState({
     name: "",
     origin: "",
@@ -12,17 +13,41 @@ function BeanPage() {
     brewMethod: ""
   });
 
+  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:8080";
+
+
   const fetchBeans = useCallback(() => {
     const params = new URLSearchParams();
     Object.entries(search).forEach(([key, value]) => {
       if (value) params.append(key, value);
     });
 
-    fetch(`http://localhost:8080/beans?${params.toString()}`)
-      .then((res) => res.json())
-      .then((data) => setBeans(data))
-      .catch((err) => console.error("Error:", err));
-  }, [search]);
+    fetch(`${API_BASE_URL}/beans?${params.toString()}`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.message || "サーバーエラー");
+        }
+        return data;
+      })
+      .then((data) => {
+        console.log("APIからのデータ:", data);
+        setError(null);  // 成功したらエラーリセット
+        if (Array.isArray(data)) {
+          setBeans(data);
+        } else if (Array.isArray(data.beans)) {
+          setBeans(data.beans);
+        } else {
+          console.error("想定外のデータ形式:", data);
+          setBeans([]);
+        }
+      })
+      .catch((err) => {
+        console.error("エラー:", err.message);
+        setBeans([]);
+        setError(err.message);
+      });
+  }, [search, API_BASE_URL]);
 
   useEffect(() => {
     fetchBeans();
@@ -33,68 +58,82 @@ function BeanPage() {
   };
 
   const handleReset = () => {
-    setSearch({ name: "", origin: "", flavor: ""});
+    setSearch({ name: "", origin: "", flavor: "", roast: "", brew: "", brewMethod: "" });
+    setError(null);
   };
 
   return (
     <div className="bean-page-container">
-  <div className="filter-panel">
-    <h2>フィルター</h2>
-    <input
-      className="narrow-input"
-      type="text"
-      name="name"
-      placeholder="名前で検索"
-      value={search.name}
-      onChange={handleChange}
-    />
-    <input
-      className="narrow-input"
-      type="text"
-      name="origin"
-      placeholder="原産国で検索"
-      value={search.origin}
-      onChange={handleChange}
-    />
-    <input
-      className="narrow-input"
-      type="text"
-      name="flavor"
-      placeholder="特徴で検索"
-      value={search.flavor}
-      onChange={handleChange}
-    />
-    <input
-      type="text"
-      name="brewNethod"
-      placeholder="抽出方法で検索"
-      value={search.brewMethod}
-      onChange={handleChange}
-      style={{ marginRight: "0.5rem" }}
-      />
-    <select>
-      <option value="">抽出方法を選択</option>
-      <option value="ドリップ">ドリップ</option>
-      <option value="フレンチプレス">フレンチプレス</option>
-      <option value="エスプレッソ">エスプレッソ</option>
-    </select>
-    <button className="reset-button" onClick={handleReset}>リセット</button>
-  </div>
-
-  <div className="bean-list-panel">
-    <h1>豆の種類</h1>
-    <ul>
-      {beans.map((bean, idx) => (
-        <li key={idx}>
-          <h2>{bean.name}</h2>
-          <p><strong>原産国:</strong> {bean.origin}</p>
-          <p><strong>特徴:</strong> {bean.flavor}</p>
-          <p><strong>抽出方法:</strong>{bean.brewMethod}</p>
-        </li>
-      ))}
-    </ul>
-  </div>
-</div>
+      <div className="filter-panel">
+        <h2>Filter</h2>
+        <input
+          className="narrow-input"
+          type="text"
+          name="name"
+          placeholder="Name"
+          value={search.name}
+          onChange={handleChange}
+          autoComplete="name"
+        />
+        <input
+          className="narrow-input"
+          type="text"
+          name="origin"
+          placeholder="Origin"
+          value={search.origin}
+          onChange={handleChange}
+          autoComplete="country"
+        />
+        <input
+          className="narrow-input"
+          type="text"
+          name="flavor"
+          placeholder="Characteristics"
+          value={search.flavor}
+          onChange={handleChange}
+          autoComplete="off"
+        />
+        {/*<input
+          type="text"
+          id="brewMethodInput"
+          name="brewMethod"
+          placeholder="抽出方法で検索"
+          value={search.brewMethod}
+          onChange={handleChange}
+          style={{ marginRight: "0.5rem" }}
+          autoComplete="off"
+        />*/}
+        <select
+          id="brewMethodSelect"
+          name="brewMethod"
+          value={search.brewMethod}
+          onChange={(e) => setSearch({ ...search, brewMethod: e.target.value })}
+        >
+          <option value="">Select</option>
+          <option value="HAND_DRIP">Hand_drip</option>
+          <option value="FRENCH_PRESS">French_Press</option>
+          <option value="ESPRESSO">Espresso</option>
+          <option value="SIPHON">Siphon</option>
+          <option value="PAPER_DRIP">Paper_Drip</option>
+        </select>
+        <button className="reset-button" onClick={handleReset}>Reset</button>
+      </div>
+      
+      <div className="bean-list-panel">
+        <h1>Type of Beans</h1>
+        {error && <div className="error-message">エラー: {error}</div>}
+        <ul>
+          {beans.map((bean, idx) => (
+            <li key={idx}>
+              <h2>{bean.name}</h2>
+              <p><strong>Origin:</strong> {bean.origin}</p>
+              <p><strong>Flavor:</strong> {bean.flavor}</p>
+              <p><strong>Brew Method:</strong> {bean.brewMethod}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }
 
